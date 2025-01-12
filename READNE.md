@@ -1,16 +1,38 @@
-I want to create a script called refactor-prompt.mjs. Most of the programming I do are functional programs. Now this script basically using the deepseek-chat to analyze my functions in a file and determines whether it warrants a refactor based on the clarity, correctness and efficiency of the code. It will then stream the outputs as such
+# Refactor Prompt Script
 
-| Functions | Refactor? | Refactor Request |
-| function_1() | Yes/No | <prompt for claude to refactor the code of the function> | 
+Analyze files, identifies functions that may benefit from refactoring, and generates a refactor prompt for each function that needs refactoring. 
 
-// refactor-prompt.mjs
-import { chat } from './models/deepseek.mjs';
+## Installation
 
-// Example usage to call deepseek chat:
-const response = await chat({
-  messages: [
-    { role: 'system', content: 'You are deepseek' },
-    { role: 'user', content: 'Hello, how are you?' }
-  ],
-  stream: true  // for streaming output
-});
+1. **Clone or Download:**  
+   ```bash
+   git clone https://github.com/your-repo/refactor-prompt-script.git
+   cd refactor-prompt-script
+   ```
+2. **Install Dependencies:**  
+   ```bash
+   npm install
+   ```
+   *or*
+   ```bash
+   yarn install
+   ```
+3. **Configure `deepseek.mjs`:**  
+   - Ensure your `./models/deepseek.mjs` file is set up to interact with your chat/AI model.  
+   - Confirm that any API keys or environment variables are correctly referenced.
+
+---
+
+## Usage
+
+```bash
+node refactor-prompt.mjs <file-path> [custom-prompt]
+```
+
+- **file-path**: The path to the JavaScript file you want to analyze.
+- **custom-prompt** (optional): Additional instructions or requirements for the refactoring process.
+
+## Outputs 
+
+The output includes a ```<file>.refactor.<extension>```. Paste it into chatgpt or claude to get the refactored version.
+
