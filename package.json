@@ -1,0 +1,10 @@
+{
+  "name": "ai-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "homepage": "https://github.com/mk3-14159/ai-scripts#readme",
+  "description": "AI scripts for AI powered workflows",
+  "dependencies": {
+    "openai": "^4.78.1"
+  }
+}
