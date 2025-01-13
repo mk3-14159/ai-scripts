@@ -27,7 +27,7 @@ Analyze files, identifies functions that may benefit from refactoring, and gener
 ## Usage
 
 ```bash
-node refactor-prompt.mjs <file-path> [custom-prompt]
+node refactor-prompt.mjs <file-path> "<your-prompt>"
 ```
 
 - **file-path**: The path to the JavaScript file you want to analyze.
