@@ -6,8 +6,8 @@ Analyze files, identifies functions that may benefit from refactoring, and gener
 
 1. **Clone or Download:**  
    ```bash
-   git clone https://github.com/your-repo/refactor-prompt-script.git
-   cd refactor-prompt-script
+   git clone https://github.com/deepseek-refactor/refactor-prompt-script.git
+   cd deepseek-refactor
    ```
 2. **Install Dependencies:**  
    ```bash
@@ -19,7 +19,8 @@ Analyze files, identifies functions that may benefit from refactoring, and gener
    ```
 3. **Configure `deepseek.mjs`:**  
    - Ensure your `./models/deepseek.mjs` file is set up to interact with your chat/AI model.  
-   - Confirm that any API keys or environment variables are correctly referenced.
+   - Confirm that any API keys or environment variables are in your ```~/.config``` file. eg. ```deepseek.token```.
+   - It will probably work with chatgpt and claude api calls too.
 
 ---
 
