@@ -22,7 +22,6 @@ Consider:
 - Identify key usage patterns that must be preserved
 
 3. Code Quality:
-- Complexity and documentation
 - Error handling and edge cases
 - Performance and security concerns
 - Common bugs (off-by-one, type issues)
@@ -102,31 +101,95 @@ async function extractFunctions(filePath) {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     
-    const functionRegex = /(?:\/\*\*(?:[\s\S]*?)\*\/\s*)*(?:async\s+)?(?:function\s+(\w+)|const\s+(\w+)\s*=(?:\s*async)?\s*(?:function|\([^)]*\)\s*=>))\s*\([^)]*\)\s*{(?:{[^}]*}|[^}])*}/g;
+    // TypeScript-aware patterns
+    const patterns = {
+      // Class methods with TypeScript features
+      classMethod: {
+        pattern: /class\s+(\w+)(?:<[^>]*>)?(?:\s+extends\s+\w+(?:<[^>]*>)?)?(?:\s+implements\s+(?:\w+(?:<[^>]*>)?(?:\s*,\s*\w+(?:<[^>]*>)?)*))?\s*{[\s\S]*?(?:(?:private|protected|public|readonly|override|abstract|async)\s+)*(?:constructor|(?:static\s+)?(?:get|set|#)?\s*\w+)\s*(?:<[^>]*>)?\s*\([^)]*\)\s*(?::\s*[^{]*?)?\s*{(?:[^{}]*|{(?:[^{}]*|{[^{}]*})*})*}/g,
+        nameExtractor: (match) => {
+          const methodMatch = match[0].match(/(?:constructor|(?:static\s+)?(?:get|set|#)?\s*(\w+))\s*(?:<[^>]*>)?\s*\(/);
+          return methodMatch ? (methodMatch[1] || 'constructor') : null;
+        }
+      },
+      
+      // Named function declarations with type parameters and return types
+      namedFunction: {
+        pattern: /(?:export\s+)?(?:declare\s+)?(?:async\s+)?function\s*(?:<[^>]*>)?\s*(\w+)\s*\([^)]*\)\s*(?::\s*[^{]*?)?\s*{(?:[^{}]*|{(?:[^{}]*|{[^{}]*})*})*}/g,
+        nameExtractor: (match) => match[1]
+      },
+      
+      // Variable assigned functions with type annotations
+      variableFunction: {
+        pattern: /(?:export\s+)?(?:declare\s+)?(?:const|let|var)\s+(\w+)\s*(?::\s*(?:(?:\(.*?\)\s*=>|Function)\s*[^=;]*)?)?\s*=\s*(?:async\s*)?(?:\([^)]*\)\s*=>|function\s*(?:<[^>]*>)?\s*\([^)]*\)\s*(?::\s*[^{]*?)?\s*)\s*{(?:[^{}]*|{(?:[^{}]*|{[^{}]*})*})*}/g,
+        nameExtractor: (match) => match[1]
+      },
+      
+      // Interface methods
+      interfaceMethod: {
+        pattern: /interface\s+(\w+)(?:<[^>]*>)?\s*(?:extends\s+[^{]*?)?\s*{\s*[^}]*?(\w+)\s*(?:<[^>]*>)?\s*\([^)]*\)\s*:/g,
+        nameExtractor: (match) => match[2]
+      },
+      
+      // Object methods with type annotations
+      objectMethod: {
+        pattern: /(?:readonly\s+)?(\w+)\s*(?:\??\s*:\s*)?(?:(?:\(.*?\)\s*=>|Function)\s*[^=;]*|(?:async\s*)?(?:function\s*(?:<[^>]*>)?\s*\([^)]*\)\s*(?::\s*[^{]*?)?\s*|\([^)]*\)\s*(?::\s*[^{=]*?)?\s*=>)\s*){(?:[^{}]*|{(?:[^{}]*|{[^{}]*})*})*}/g,
+        nameExtractor: (match) => match[1]
+      }
+    };
+
     const functions = [];
-    let match;
     let lastIndex = 0;
 
-    while ((match = functionRegex.exec(content)) !== null) {
-      const preText = content.slice(lastIndex, match.index);
-      lastIndex = match.index + match[0].length;
+    // Helper to check if a match is inside a type declaration
+    const isInsideTypeDeclaration = (content, matchIndex) => {
+      const previousContent = content.slice(0, matchIndex);
+      const typeKeywords = previousContent.match(/\b(type|interface)\s+\w+\s*(?:<[^>]*>)?\s*=/g);
+      if (!typeKeywords) return false;
       
-      const functionName = match[1] || match[2];
-      const refactorCommentRegex = /\/\*\*\s*\n\s*\*\s*REFACTOR:[^*]*\*\//g;
-      const refactorComments = Array.from(preText.matchAll(refactorCommentRegex), m => m[0]);
+      // Check if we're between a type declaration and its closing statement
+      const lastTypeKeyword = typeKeywords[typeKeywords.length - 1];
+      const lastTypeKeywordIndex = previousContent.lastIndexOf(lastTypeKeyword);
+      const nextSemicolon = content.indexOf(';', lastTypeKeywordIndex);
       
-      functions.push({
-        name: functionName,
-        code: match[0],
-        preText: refactorComments[refactorComments.length - 1] || '',
-        startIndex: match.index,
-        endIndex: match.index + match[0].length,
-        moduleContext: extractModuleContext(content, match.index)
-      });
+      return matchIndex > lastTypeKeywordIndex && (nextSemicolon === -1 || matchIndex < nextSemicolon);
+    };
+
+    // Process each pattern type
+    for (const [type, { pattern, nameExtractor }] of Object.entries(patterns)) {
+      let match;
+      pattern.lastIndex = 0; // Reset regex index for each pattern
+      
+      while ((match = pattern.exec(content)) !== null) {
+        const functionName = nameExtractor(match);
+        if (!functionName) continue;
+        
+        // Skip control structures and type declarations
+        if (['if', 'for', 'while', 'switch'].includes(functionName)) continue;
+        if (isInsideTypeDeclaration(content, match.index)) continue;
+        
+        const preText = content.slice(lastIndex, match.index);
+        
+        // Extract any refactor comments, including TypeScript-specific JSDoc
+        const refactorCommentRegex = /\/\*\*\s*(?:\s*\*\s*@[^\n]*\n)*\s*\*\s*REFACTOR:[^*]*\*\//g;
+        const refactorComments = Array.from(preText.matchAll(refactorCommentRegex), m => m[0]);
+        
+        functions.push({
+          name: functionName,
+          type,
+          code: match[0],
+          preText: refactorComments[refactorComments.length - 1] || '',
+          startIndex: match.index,
+          endIndex: match.index + match[0].length,
+          moduleContext: extractModuleContext(content, match.index)
+        });
+      }
     }
     
+    // Sort functions by their position in the file
+    functions.sort((a, b) => a.startIndex - b.startIndex);
+    
     return {
-      functions: functions.sort((a, b) => a.startIndex - b.startIndex),
+      functions,
       postText: content.slice(lastIndex),
       originalContent: content
     };
@@ -238,7 +301,7 @@ ${needsRefactoring.map((result, i) => formatRefactorPrompt(result, i)).join('\n'
 FILE CONTENT:
 ${originalContent.originalContent}
 
-Return only the complete refactored code, maintaining the same exports and core functionality.`;
+Return the complete file of the refactored code, maintaining the same exports and core functionality.`;
 
     await fs.writeFile(refactorPath, outputContent, 'utf-8');
     return refactorPath;
